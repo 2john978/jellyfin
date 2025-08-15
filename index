@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DDNS IP Lookup</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+    #ip {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #2a5d9f;
+    }
+  </style>
+</head>
+<body>
+  <h1>Current IP for appleton.ddns.net</h1>
+  <p id="ip">Looking up...</p>
+
+  <script>
+    async function fetchIP() {
+      try {
+        const response = await fetch("https://dns.google/resolve?name=appleton.ddns.net&type=A");
+        const data = await response.json();
+
+        if (data.Answer && data.Answer.length > 0) {
+          // Find the first A record
+          const record = data.Answer.find(a => a.type === 1); // type 1 = A record
+          document.getElementById("ip").textContent = record ? record.data : "No A record found";
+        } else {
+          document.getElementById("ip").textContent = "No DNS record found";
+        }
+      } catch (err) {
+        document.getElementById("ip").textContent = "Error: " + err.message;
+      }
+    }
+
+    fetchIP();
+  </script>
+</body>
+</html>
