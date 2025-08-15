@@ -1,0 +1,71 @@
+name: Update DDNS IP
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"  # every ~5 minutes (GitHub may not run exactly on-time)
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve appleton.ddns.net and write ip.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY' > ip.json
+import socket, json, time
+
+HOST = "appleton.ddns.net"
+PORT = 8096
+
+# Prefer IPv4; if none, allow IPv6
+ipv4 = []
+ipv6 = []
+for fam, _, _, _, sockaddr in socket.getaddrinfo(HOST, None):
+    ip = sockaddr[0]
+    if ":" in ip:
+        ipv6.append(ip)
+    else:
+        ipv4.append(ip)
+
+ip = (sorted(set(ipv4)) or sorted(set(ipv6)) or [""])[0]
+
+# For IPv6 URLs, wrap in brackets
+def to_url(ip, port):
+    if not ip:
+        return ""
+    if ":" in ip:
+        return f"http://[{ip}]:{port}/"
+    return f"http://{ip}:{port}/"
+
+payload = {
+    "hostname": HOST,
+    "ip": ip,
+    "port": PORT,
+    "url": to_url(ip, PORT),
+    "resolved_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+}
+
+print(json.dumps(payload, indent=2))
+PY
+
+      - name: Commit if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- ip.json; then
+            echo "No changes to ip.json"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ip.json
+          git commit -m "Update ip.json"
+          git push
